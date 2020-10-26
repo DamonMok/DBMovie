@@ -1,7 +1,8 @@
 import ssl
-import urllib.request
+import urllib.request, urllib.error
 from bs4 import BeautifulSoup
 import xlwt
+import sqlite3
 
 
 class MovieHandel(object):
@@ -28,7 +29,7 @@ class MovieHandel(object):
                 movie.update({"image_link": item.select_one(".pic>a>img")["src"]})  # 图片链接
                 movie.update({"detail_link": item.select_one(".pic>a")["href"]})  # 电影详情链接
                 movie.update({"title": item.select(".hd>a>.title")[0].string})  # 标题
-                movie.update({"sub_title": " "})   # 副标题
+                movie.update({"sub_title": " "})  # 副标题
                 if len(item.select(".hd>a>.title")) > 1:
                     movie.update({"sub_title": item.select(".hd>a>.title")[1].string})
                 movie.update({"other_title": item.select(".hd>a>.other")[0].string})  # 其他标题
@@ -42,12 +43,23 @@ class MovieHandel(object):
     def get_html(self):
 
         request = urllib.request.Request(url=self.base_url, headers=self.headers)
-        response = urllib.request.urlopen(request)
+        response = None
+        try:
+            response = urllib.request.urlopen(request)
+        except urllib.error.HTTPError as e:
+            print(e.reason, e.code, e.headers, sep="\n")
+        except urllib.error.URLError as e:
+            print(e.reason)
+        else:
+            print("Request finished!")
 
         return response.read().decode("utf-8")
 
-    def save(self):
-
+    def save2excel(self):
+        """
+        保存到Excel
+        :return:
+        """
         work_book = xlwt.Workbook(encoding="utf-8")
         work_sheet = work_book.add_sheet("movies_data")
 
@@ -59,16 +71,50 @@ class MovieHandel(object):
         for i in range(len(self.movie_list)):
             # 写入电影信息
             movie = self.movie_list[i]
-            j = 0
 
+            j = 0
             for key, value in movie.items():
                 work_sheet.write(i + 1, j, value)
-                j = j+1
+                j = j + 1
 
         work_book.save("movies.xls")
+
+    def save2db(self):
+        """
+        保存到数据库
+        :return:
+        """
+        connect = sqlite3.connect("movies.db",)
+        cursor = connect.cursor()
+        try:
+            cursor.execute('''
+                    create table movie(
+                        id integer primary key autoincrement ,
+                        image_link text ,
+                        detail_link text ,
+                        title varchar ,
+                        sub_title varchar ,
+                        other_title varchar ,
+                        desc text,
+                        rating_num varchar ,
+                        comment_num varchar ,
+                        inq varchar );''')
+        except sqlite3.OperationalError as e:
+            print(e)
+        else:
+            print("Create table successful!")
+
+        # 保存到数据库
+        for movie in self.movie_list:
+            cursor.execute('insert into movie (image_link, detail_link, title, sub_title, other_title, desc, rating_num, comment_num, inq) values ("%s", "%s", "%s", "%s","%s", "%s","%s", "%s","%s")' % (movie["image_link"], movie["detail_link"], movie["title"], movie["sub_title"], movie["other_title"], movie["desc"], movie["rating_num"], movie["comment_num"], movie["inq"]))
+
+        connect.commit()
+        cursor.close()
+        connect.close()
 
 
 if __name__ == '__main__':
     movie_handle = MovieHandel()
     movie_handle.get_data()
-    movie_handle.save()
+    # movie_handle.save2excel()  # 保存到Excel
+    movie_handle.save2db()
