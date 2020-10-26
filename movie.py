@@ -20,7 +20,7 @@ class MovieHandel(object):
 
         for page in range(0, 10):
             current_url = self.base_url + str(page * 25)
-            html = self.get_html()
+            html = self.get_html(current_url)
 
             soup = BeautifulSoup(html, "html.parser")
             for item in soup.select("li > .item"):
@@ -36,13 +36,15 @@ class MovieHandel(object):
                 movie.update({"desc": item.select_one(".bd>p").get_text().replace("\n", "").replace(" ", "")})  # 描述
                 movie.update({"rating_num": item.select_one(".star>.rating_num").string})  # 评分
                 movie.update({"comment_num": item.select(".star>span")[-1].string.replace("人评价", "")})  # 评价数
-                movie.update({"inq": item.select_one(".bd>.quote>span").string})  # 简述
+                movie.update({"inq": " "})  # 简述
+                if len(item.select(".bd>.quote>span")) > 0:
+                    movie.update({"inq": item.select(".bd>.quote>span")[0].string})
 
                 self.movie_list.append(movie)
 
-    def get_html(self):
+    def get_html(self, url):
 
-        request = urllib.request.Request(url=self.base_url, headers=self.headers)
+        request = urllib.request.Request(url=url, headers=self.headers)
         response = None
         try:
             response = urllib.request.urlopen(request)
@@ -84,37 +86,47 @@ class MovieHandel(object):
         保存到数据库
         :return:
         """
-        connect = sqlite3.connect("movies.db",)
+        self.init_db()
+        connect = sqlite3.connect("movies.db")
         cursor = connect.cursor()
-        try:
-            cursor.execute('''
-                    create table movie(
-                        id integer primary key autoincrement ,
-                        image_link text ,
-                        detail_link text ,
-                        title varchar ,
-                        sub_title varchar ,
-                        other_title varchar ,
-                        desc text,
-                        rating_num varchar ,
-                        comment_num varchar ,
-                        inq varchar );''')
-        except sqlite3.OperationalError as e:
-            print(e)
-        else:
-            print("Create table successful!")
 
         # 保存到数据库
         for movie in self.movie_list:
+            print(movie)
             cursor.execute('insert into movie (image_link, detail_link, title, sub_title, other_title, desc, rating_num, comment_num, inq) values ("%s", "%s", "%s", "%s","%s", "%s","%s", "%s","%s")' % (movie["image_link"], movie["detail_link"], movie["title"], movie["sub_title"], movie["other_title"], movie["desc"], movie["rating_num"], movie["comment_num"], movie["inq"]))
+            connect.commit()
 
-        connect.commit()
         cursor.close()
         connect.close()
+
+    @staticmethod
+    def init_db():
+        connect = sqlite3.connect("movies.db")
+        cursor = connect.cursor()
+        try:
+            cursor.execute('''
+                            create table movie(
+                                id integer primary key autoincrement ,
+                                image_link text ,
+                                detail_link text ,
+                                title varchar ,
+                                sub_title varchar ,
+                                other_title varchar ,
+                                desc text,
+                                rating_num varchar ,
+                                comment_num varchar ,
+                                inq varchar );''')
+        except sqlite3.OperationalError as e:
+            print(e)
+        else:
+            connect.commit()
+            cursor.close()
+            connect.close()
+            print("Create table successful!")
 
 
 if __name__ == '__main__':
     movie_handle = MovieHandel()
     movie_handle.get_data()
-    # movie_handle.save2excel()  # 保存到Excel
-    movie_handle.save2db()
+    movie_handle.save2excel()  # 保存到Excel
+    # movie_handle.save2db()  # 保存到数据库
