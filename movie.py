@@ -124,9 +124,17 @@ class MovieHandel(object):
             connect.close()
             print("Create table successful!")
 
+    @classmethod
+    def movie_from_db(cls):
+        connect = sqlite3.connect('movies.db')
+        cursor = connect.cursor()
+        result = cursor.execute('select * from movie').fetchall()
+        return result
+
 
 if __name__ == '__main__':
     movie_handle = MovieHandel()
-    movie_handle.get_data()
-    movie_handle.save2excel()  # 保存到Excel
+    # movie_handle.get_data()  # 爬取数据
+    # movie_handle.save2excel()  # 保存到Excel
     # movie_handle.save2db()  # 保存到数据库
+    movie_handle.movie_from_db()
